@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>When Michaelis–Menten Breaks</title>
+<meta name="description" content="Interactive widget: fitting initial-rate data with the Michaelis–Menten vs. the quadratic (Morrison) equation when enzyme is not negligible relative to substrate.">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4f3f0;
+  --surface-1: #fcfcfb;
+  --border: #dedcd5;
+  --grid: #ebe9e3;
+  --axis: #a9a79e;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #77756f;
+  --series-quad: #2a78d6;   /* slot 1 blue  : quadratic fit */
+  --series-mm:   #eb6834;   /* slot 2 orange: MM fit */
+  --neutral:     #6f6d66;   /* truth / identity / reference */
+  --neutral-faint: #b9b7ae;
+  --shade: rgba(42,120,214,0.08);
+  --accent-bg: #eef4fc;
+  --warn-bg: #fdf1ea;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111110;
+    --surface-1: #1a1a19;
+    --border: #34332f;
+    --grid: #2a2a27;
+    --axis: #6a6963;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #96958c;
+    --series-quad: #3987e5;
+    --series-mm:   #d95926;
+    --neutral:     #a8a79e;
+    --neutral-faint: #57564f;
+    --shade: rgba(57,135,229,0.12);
+    --accent-bg: #18222f;
+    --warn-bg: #2a1d16;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111110;
+  --surface-1: #1a1a19;
+  --border: #34332f;
+  --grid: #2a2a27;
+  --axis: #6a6963;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted: #96958c;
+  --series-quad: #3987e5;
+  --series-mm:   #d95926;
+  --neutral:     #a8a79e;
+  --neutral-faint: #57564f;
+  --shade: rgba(57,135,229,0.12);
+  --accent-bg: #18222f;
+  --warn-bg: #2a1d16;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text-primary);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 1.05rem; margin: 0 0 2px; }
+.lede { color: var(--text-secondary); max-width: 70ch; margin: 0 0 20px; }
+.card {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px;
+}
+.layout { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+.controls { position: sticky; top: 12px; }
+@media (max-width: 860px) { .controls { position: static; } }
+.ctl { margin-bottom: 14px; }
+.ctl label { display: block; font-size: 0.88rem; color: var(--text-secondary); }
+.ctl label b { float: right; margin-left: 8px; color: var(--text-primary); font-variant-numeric: tabular-nums; font-weight: 600; }
+.ctl input[type=range] { width: 100%; margin: 4px 0 0; accent-color: var(--series-quad); }
+.ctl .hint { font-size: 0.78rem; color: var(--text-muted); }
+.group-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 18px 0 8px; }
+.group-title:first-child { margin-top: 0; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+button {
+  font: inherit; font-size: 0.82rem; padding: 5px 10px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text-primary); cursor: pointer;
+}
+button:hover { border-color: var(--axis); }
+.check { display: flex; gap: 8px; align-items: baseline; font-size: 0.88rem; color: var(--text-secondary); margin: 6px 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.stat { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.stat .k { font-size: 0.78rem; color: var(--text-secondary); }
+.stat .k .swatch { margin-right: 6px; }
+.stat .v { font-size: 1.3rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat .s { font-size: 0.78rem; color: var(--text-muted); }
+.swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; vertical-align: -1px; }
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.charts .wide { grid-column: 1 / -1; }
+@media (max-width: 1000px) { .charts { grid-template-columns: 1fr; } }
+.chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 2px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; font-size: 0.8rem; }
+.seg label { cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; padding: 4px 10px; color: var(--text-secondary); }
+.seg input:checked + span { background: var(--accent-bg); color: var(--text-primary); font-weight: 600; }
+.seg input:focus-visible + span { outline: 2px solid var(--series-quad); outline-offset: -2px; }
+.chart-sub { font-size: 0.82rem; color: var(--text-secondary); margin: 0 0 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; }
+.legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; }
+.legend i.dash { border-top-style: dashed; }
+.legend i.dot { width: 9px; height: 9px; border: 2px solid; border-radius: 50%; }
+.plot { position: relative; width: 100%; }
+.plot svg { display: block; width: 100%; height: auto; overflow: visible; }
+.plot text { fill: var(--text-muted); font-size: 11px; font-family: inherit; }
+.plot .axis-title { fill: var(--text-secondary); font-size: 12px; }
+.plot .gridline { stroke: var(--grid); stroke-width: 1; }
+.plot .axisline { stroke: var(--axis); stroke-width: 1; }
+.tip {
+  position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 8px; font-size: 0.78rem; color: var(--text-primary);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12); white-space: nowrap; display: none; z-index: 5;
+  font-variant-numeric: tabular-nums;
+}
+.tip .row { display: flex; align-items: center; gap: 6px; }
+.tip .muted { color: var(--text-muted); }
+.verdict { padding: 10px 12px; border-radius: 8px; font-size: 0.9rem; margin-bottom: 16px; border: 1px solid var(--border); }
+.verdict.ok { background: var(--accent-bg); }
+.verdict.bad { background: var(--warn-bg); }
+.explain { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 860px) { .explain { grid-template-columns: 1fr; } }
+.explain p, .explain li { color: var(--text-secondary); font-size: 0.92rem; }
+.explain ol { padding-left: 20px; }
+.eq { font-family: "Cambria Math", Cambria, Georgia, serif; font-size: 1.02rem; background: var(--bg); border-radius: 6px; padding: 8px 10px; margin: 8px 0; color: var(--text-primary); overflow-x: auto; }
+table.data { border-collapse: collapse; font-size: 0.8rem; width: 100%; font-variant-numeric: tabular-nums; }
+table.data th, table.data td { text-align: right; padding: 3px 6px; border-bottom: 1px solid var(--grid); }
+table.data th { color: var(--text-secondary); font-weight: 600; }
+details summary { cursor: pointer; font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>When Michaelis–Menten breaks: enzyme is not ≪ substrate</h1>
+  <p class="lede">
+    The Michaelis–Menten equation assumes the substrate you add is the substrate that is free,
+    [S]<sub>free</sub> ≈ [S]<sub>total</sub>. That holds only when [E]<sub>total</sub> ≪ [S] + K<sub>m</sub>.
+    With a low-K<sub>m</sub>, slow enzyme it is tempting to add more enzyme so the time course is shorter.
+    Doing that soaks up substrate in the ES complex. Below, simulated initial-rate data are fit with both the
+    Michaelis–Menten equation and the quadratic (Morrison) equation, and the fitted K<sub>m</sub> is compared with the real one.
+  </p>
+
+  <div class="layout">
+    <aside class="card controls" aria-label="Parameters">
+      <div class="group-title">Enzyme</div>
+      <div class="ctl">
+        <label for="km">True K<sub>m</sub> <b id="km-out"></b></label>
+        <input type="range" id="km" min="-3" max="3" step="0.01" value="-1">
+      </div>
+      <div class="ctl">
+        <label for="et">[E]<sub>total</sub> <b id="et-out"></b></label>
+        <input type="range" id="et" min="-4" max="2" step="0.01" value="-1">
+        <div class="hint" id="ratio-hint"></div>
+      </div>
+      <div class="ctl">
+        <label for="kcat">k<sub>cat</sub> <b id="kcat-out"></b></label>
+        <input type="range" id="kcat" min="-3" max="3" step="0.01" value="-1">
+        <div class="hint">Sets how fast the reaction runs; it does not change the K<sub>m</sub> fits.</div>
+      </div>
+
+      <div class="group-title">Experiment design</div>
+      <div class="ctl">
+        <label for="smax">Highest [S]<sub>total</sub> <b id="smax-out"></b></label>
+        <input type="range" id="smax" min="0" max="2" step="0.01" value="1">
+        <div class="hint">Given as a multiple of S<sub>½</sub> = K<sub>m</sub> + [E]<sub>t</sub>/2, the [S]<sub>total</sub> giving half-maximal rate, which is where a real experiment ends up centred. Lowest [S] is 0.2 × S<sub>½</sub>; points are spaced geometrically.</div>
+      </div>
+      <div class="ctl">
+        <label for="npts">Number of [S] points <b id="npts-out"></b></label>
+        <input type="range" id="npts" min="5" max="16" step="1" value="10">
+      </div>
+      <div class="ctl">
+        <label for="noise">Rate noise (CV) <b id="noise-out"></b></label>
+        <input type="range" id="noise" min="0" max="20" step="0.5" value="3">
+      </div>
+      <button id="reseed" type="button">New noise draw</button>
+
+      <div class="group-title">Display</div>
+      <label class="check"><input type="checkbox" id="vsfree"><span>Replot rate data against true [S]<sub>free</sub></span></label>
+
+      <div class="group-title">Presets</div>
+      <div class="presets">
+        <button type="button" data-preset="classic">Classic MM ([E] ≪ K<sub>m</sub>)</button>
+        <button type="button" data-preset="tempting">Tempting shortcut ([E] = 10 K<sub>m</sub>)</button>
+        <button type="button" data-preset="tight">Tight binding (K<sub>m</sub> = 1 nM)</button>
+      </div>
+    </aside>
+
+    <section>
+      <div class="stats" id="stats"></div>
+      <div class="verdict" id="verdict"></div>
+
+      <div class="charts">
+        <div class="card wide">
+          <div class="chart-head">
+            <h2>How wrong is the fitted K<sub>m</sub>?</h2>
+            <div class="seg" role="radiogroup" aria-label="Error measure">
+              <label><input type="radio" name="errmode" value="ratio" checked><span>Ratio (fitted / true)</span></label>
+              <label><input type="radio" name="errmode" value="pct"><span>% difference</span></label>
+            </div>
+          </div>
+          <p class="chart-sub" id="sum-sub"></p>
+          <div class="legend" id="sum-legend"></div>
+          <div class="plot" id="plot-sum"></div>
+        </div>
+        <div class="card">
+          <h2>Initial-rate data and fits</h2>
+          <p class="chart-sub" id="rate-sub"></p>
+          <div class="legend" id="rate-legend"></div>
+          <div class="plot" id="plot-rate"></div>
+          <details>
+            <summary>Show data table</summary>
+            <div id="table"></div>
+          </details>
+        </div>
+        <div class="card">
+          <h2>How much substrate is actually free?</h2>
+          <p class="chart-sub">[S]<sub>free</sub>/[S]<sub>total</sub> at the current [E]<sub>total</sub>. The shaded band is the [S] range you measured.</p>
+          <div class="plot" id="plot-free"></div>
+        </div>
+        <div class="card wide">
+          <h2>Why it is tempting: the time course</h2>
+          <p class="chart-sub" id="tc-sub"></p>
+          <div class="legend" id="tc-legend"></div>
+          <div class="plot" id="plot-tc"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="explain">
+    <div class="card">
+      <h2>The two equations</h2>
+      <p><b>Michaelis–Menten</b> assumes [S]<sub>free</sub> = [S]<sub>total</sub>:</p>
+      <div class="eq">v = V<sub>max</sub>[S]<sub>total</sub> / (K<sub>m</sub> + [S]<sub>total</sub>)</div>
+      <p><b>Quadratic (Morrison)</b> conserves both enzyme and substrate,
+        [E]<sub>t</sub> = [E] + [ES] and [S]<sub>t</sub> = [S] + [ES], so [ES] solves a quadratic:</p>
+      <div class="eq">v = k<sub>cat</sub> · { ([E]<sub>t</sub> + [S]<sub>t</sub> + K<sub>m</sub>) − √(([E]<sub>t</sub> + [S]<sub>t</sub> + K<sub>m</sub>)² − 4[E]<sub>t</sub>[S]<sub>t</sub>) } / 2</div>
+      <p>The data here are generated with the quadratic, which is the exact steady-state rate for a given total substrate.
+        The quadratic fit has two free parameters, k<sub>cat</sub> and K<sub>m</sub>, and uses the known [E]<sub>t</sub>.
+        The MM fit has two free parameters, V<sub>max</sub> and K<sub>m</sub>.</p>
+      <p>At half-maximal rate, [ES] = [E]<sub>t</sub>/2 and [S]<sub>free</sub> = K<sub>m</sub>, so the substrate you must add is
+        [S]<sub>total</sub> = K<sub>m</sub> + [E]<sub>t</sub>/2. That is roughly what an MM fit reports as K<sub>m</sub> (the dashed line in the top plot is the ratio this predicts, 1 + [E]<sub>t</sub>/2K<sub>m</sub>).</p>
+    </div>
+    <div class="card">
+      <h2>Things to try</h2>
+      <ol>
+        <li>Start with <i>Classic MM</i>. Raise [E]<sub>total</sub> one decade at a time. At what [E]/K<sub>m</sub> does the MM K<sub>m</sub> become more than 2-fold wrong?</li>
+        <li>Try <i>Tempting shortcut</i>. Note how much shorter the time course is. Is the MM fit visibly bad? (Check the residuals by eye, or turn the noise up to 5%.)</li>
+        <li>In the top plot, read off the [E]<sub>t</sub>/K<sub>m</sub> where the MM error first leaves the ±10% band. How does that compare with the dashed prediction?</li>
+        <li>Try <i>Tight binding</i> and raise the noise. How low a K<sub>m</sub> can the quadratic still resolve once K<sub>m</sub> ≪ [E]<sub>t</sub>? Why does the data then look like a titration?</li>
+        <li>Tick <i>Replot against true [S]<sub>free</sub></i>. Why do the same points now fall on an MM curve with the true K<sub>m</sub>?</li>
+        <li>Does fitted V<sub>max</sub> (or k<sub>cat</sub>) suffer as much as K<sub>m</sub>? What happens to both fits when the highest [S] is only 1–2 × S<sub>½</sub>, so the data never reach saturation?</li>
+      </ol>
+    </div>
+  </div>
+</main>
+
+<div class="tip" id="tip"></div>
+
+<script>
+"use strict";
+// ---------- Kinetics ----------
+// Steady-state [ES] for total enzyme Et, total substrate St (numerically stable root).
+function ES(St, Et, Km) {
+  if (St <= 0) return 0;
+  const b = Et + St + Km;
+  const disc = Math.max(b * b - 4 * Et * St, 0);
+  return 2 * Et * St / (b + Math.sqrt(disc));
+}
+const vQuad = (S, Et, Km, kcat) => kcat * ES(S, Et, Km);
+const vMM = (S, Vmax, Km) => Vmax * S / (Km + S);
+
+// ---------- Seeded noise ----------
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function gaussians(seed, n) {
+  const r = mulberry32(seed), out = [];
+  while (out.length < n) {
+    const u = Math.max(r(), 1e-12), v = r();
+    const m = Math.sqrt(-2 * Math.log(u));
+    out.push(m * Math.cos(2 * Math.PI * v), m * Math.sin(2 * Math.PI * v));
+  }
+  return out.slice(0, n);
+}
+
+// ---------- Experiment ----------
+const S_LO = 0.2; // lowest [S] as multiple of the apparent half-saturation point
+function makeData(p, Km, seed) {
+  // A real experimenter extends [S] until the rate saturates, i.e. spans the
+  // apparent half-saturation point Km + Et/2 rather than the (unknown) true Km.
+  const K50 = Km + p.Et / 2;
+  const n = p.npts, lo = S_LO * K50, hi = p.smaxRel * K50;
+  const z = gaussians(seed, n);
+  const S = [], v = [], vtrue = [];
+  for (let i = 0; i < n; i++) {
+    const s = lo * Math.pow(hi / lo, i / (n - 1));
+    const vt = vQuad(s, p.Et, Km, p.kcat);
+    S.push(s); vtrue.push(vt);
+    v.push(vt * (1 + p.noise * z[i]));
+  }
+  return { S, v, vtrue };
+}
+
+// ---------- Fitting ----------
+// Both models are linear in their scale parameter (Vmax or kcat) once Km is fixed,
+// so profile the SSE over log10(Km) and solve the scale analytically.
+const LOGK_MIN = -7, LOGK_MAX = 6;
+function fitProfile(S, y, basis) {
+  function sse(lk) {
+    const K = Math.pow(10, lk);
+    let sfy = 0, sff = 0;
+    const f = S.map(s => basis(s, K));
+    for (let i = 0; i < f.length; i++) { sfy += f[i] * y[i]; sff += f[i] * f[i]; }
+    const a = sff > 0 ? sfy / sff : 0;
+    let e = 0;
+    for (let i = 0; i < f.length; i++) { const d = y[i] - a * f[i]; e += d * d; }
+    return { e, a };
+  }
+  const step = 0.05;
+  let best = LOGK_MIN, bestE = Infinity;
+  for (let lk = LOGK_MIN; lk <= LOGK_MAX + 1e-9; lk += step) {
+    const { e } = sse(lk);
+    if (e < bestE) { bestE = e; best = lk; }
+  }
+  let a = Math.max(LOGK_MIN, best - step), b = Math.min(LOGK_MAX, best + step);
+  const g = (Math.sqrt(5) - 1) / 2;
+  let c = b - g * (b - a), d = a + g * (b - a);
+  let fc = sse(c).e, fd = sse(d).e;
+  for (let k = 0; k < 40; k++) {
+    if (fc < fd) { b = d; d = c; fd = fc; c = b - g * (b - a); fc = sse(c).e; }
+    else { a = c; c = d; fc = fd; d = a + g * (b - a); fd = sse(d).e; }
+  }
+  const lk = (a + b) / 2, r = sse(lk);
+  return {
+    Km: Math.pow(10, lk), scale: r.a, sse: r.e,
+    atLo: lk < LOGK_MIN + 0.1, atHi: lk > LOGK_MAX - 0.1
+  };
+}
+const fitMM = (S, y) => fitProfile(S, y, (s, K) => s / (K + s));          // scale = Vmax
+const fitQuad = (S, y, Et) => fitProfile(S, y, (s, K) => ES(s, Et, K));    // scale = kcat
+
+// ---------- Time course: d[P]/dt = kcat [ES]([S]t = S0 - P) ----------
+function timeCourse(rate, S0, tmax, N) {
+  const pts = [[0, 0]]; let P = 0; const h = tmax / N;
+  const f = P => rate(Math.max(S0 - P, 0));
+  for (let i = 1; i <= N; i++) {
+    const k1 = f(P), k2 = f(P + h * k1 / 2), k3 = f(P + h * k2 / 2), k4 = f(P + h * k3);
+    P = Math.min(S0, P + h * (k1 + 2 * k2 + 2 * k3 + k4) / 6);
+    pts.push([i * h, P]);
+  }
+  return pts;
+}
+function timeTo(rate, S0, frac) {
+  // adaptive: each step consumes <= 0.5% of remaining substrate
+  let t = 0, P = 0, guard = 0;
+  while (P < frac * S0 && guard++ < 200000) {
+    const r = rate(S0 - P);
+    if (r <= 0) return Infinity;
+    const dt = Math.max(0.005 * (S0 - P) / r, 1e-12);
+    const r2 = rate(Math.max(S0 - P - r * dt / 2, 0));
+    P += r2 * dt; t += dt;
+  }
+  return t;
+}
+
+// ---------- Formatting ----------
+function num(x, sig = 3) {
+  if (!isFinite(x)) return "∞";
+  if (x === 0) return "0";
+  const ax = Math.abs(x);
+  if (ax >= 1e5 || ax < 1e-3) {
+    const e = Math.floor(Math.log10(ax)), m = x / Math.pow(10, e);
+    return (+m.toPrecision(sig)) + "×10" + sup(e);
+  }
+  return String(+x.toPrecision(sig));
+}
+function sup(e) { const m = { "-": "⁻", "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹" }; return String(e).split("").map(c => m[c]).join(""); }
+function conc(uM) {
+  if (!isFinite(uM)) return "∞";
+  const a = Math.abs(uM);
+  if (a >= 1000) return num(uM / 1000) + " mM";
+  if (a >= 1) return num(uM) + " µM";
+  if (a >= 1e-3) return num(uM * 1000) + " nM";
+  return num(uM * 1e6) + " pM";
+}
+function dur(s) {
+  if (!isFinite(s)) return "∞";
+  if (s < 1) return num(s * 1000) + " ms";
+  if (s < 120) return num(s) + " s";
+  if (s < 7200) return num(s / 60) + " min";
+  if (s < 172800) return num(s / 3600) + " h";
+  return num(s / 86400) + " days";
+}
+function rateUnits(v) { // v in µM/s
+  const a = Math.abs(v);
+  if (a >= 1) return num(v) + " µM/s";
+  if (a >= 1e-3) return num(v * 1000) + " nM/s";
+  return num(v * 1e6) + " pM/s";
+}
+function fold(fit, truth) { const r = fit / truth; if (r > 0.95 && r < 1.05) return "within 5% of true"; return r >= 1 ? num(r, 2) + "× too high" : num(1 / r, 2) + "× too low"; }
+
+// ---------- Minimal SVG plotting ----------
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function niceLinTicks(lo, hi, n = 5) {
+  const span = hi - lo, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n + 0.5);
+  const out = []; for (let t = Math.ceil(lo / step) * step; t <= hi + step * 1e-6; t += step) out.push(+t.toPrecision(10));
+  return out;
+}
+function logTicks(lo, hi) {
+  const out = []; for (let e = Math.ceil(Math.log10(lo) - 1e-9); e <= Math.floor(Math.log10(hi) + 1e-9); e++) out.push(Math.pow(10, e));
+  return out;
+}
+function tickLabel(t, log) { return log ? num(t, 2) : String(+t.toPrecision(6)); }
+
+const tip = document.getElementById("tip");
+
+function plot(container, cfg) {
+  const W = Math.max(container.clientWidth, 280);
+  const H = cfg.height || Math.round(Math.min(Math.max(W * 0.55, 240), 380));
+  const m = { l: 62, r: cfg.rightPad || 16, t: 10, b: 46 };
+  container.innerHTML = "";
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": cfg.aria || "" }, container);
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const [x0, x1] = cfg.xdom, [y0, y1] = cfg.ydom;
+  const fx = cfg.xlog ? (x => (Math.log10(x) - Math.log10(x0)) / (Math.log10(x1) - Math.log10(x0))) : (x => (x - x0) / (x1 - x0));
+  const fy = cfg.ylog ? (y => (Math.log10(y) - Math.log10(y0)) / (Math.log10(y1) - Math.log10(y0))) : (y => (y - y0) / (y1 - y0));
+  const X = x => m.l + fx(x) * pw, Y = y => m.t + (1 - fy(y)) * ph;
+  const clipId = "clip" + Math.random().toString(36).slice(2);
+  el("rect", { x: m.l, y: m.t, width: pw, height: ph }, el("clipPath", { id: clipId }, el("defs", {}, svg)));
+
+  const xt = cfg.xlog ? logTicks(x0, x1) : niceLinTicks(x0, x1);
+  const yt = cfg.ylog ? logTicks(y0, y1) : niceLinTicks(y0, y1, 4);
+  xt.forEach(t => {
+    el("line", { x1: X(t), x2: X(t), y1: m.t, y2: m.t + ph, class: "gridline" }, svg);
+    el("text", { x: X(t), y: m.t + ph + 16, "text-anchor": "middle" }, svg).textContent = cfg.xfmt ? cfg.xfmt(t) : tickLabel(t, cfg.xlog);
+  });
+  yt.forEach(t => {
+    el("line", { x1: m.l, x2: m.l + pw, y1: Y(t), y2: Y(t), class: "gridline" }, svg);
+    el("text", { x: m.l - 6, y: Y(t) + 4, "text-anchor": "end" }, svg).textContent = cfg.yfmt ? cfg.yfmt(t) : tickLabel(t, cfg.ylog);
+  });
+  el("line", { x1: m.l, x2: m.l + pw, y1: m.t + ph, y2: m.t + ph, class: "axisline" }, svg);
+  el("line", { x1: m.l, x2: m.l, y1: m.t, y2: m.t + ph, class: "axisline" }, svg);
+  el("text", { x: m.l + pw / 2, y: H - 6, "text-anchor": "middle", class: "axis-title" }, svg).textContent = cfg.xlabel;
+  el("text", { x: 14, y: m.t + ph / 2, "text-anchor": "middle", class: "axis-title", transform: `rotate(-90 14 ${m.t + ph / 2})` }, svg).textContent = cfg.ylabel;
+
+  const g = el("g", { "clip-path": `url(#${clipId})` }, svg);
+  (cfg.bands || []).forEach(b => {
+    el("rect", { x: X(b[0]), y: m.t, width: Math.max(X(b[1]) - X(b[0]), 0), height: ph, fill: "var(--shade)" }, g);
+  });
+  (cfg.hbands || []).forEach(b => {
+    el("rect", { x: m.l, y: Y(b[1]), width: pw, height: Math.max(Y(b[0]) - Y(b[1]), 0), fill: "var(--shade)" }, g);
+  });
+  (cfg.vlines || []).forEach(v => {
+    el("line", { x1: X(v.x), x2: X(v.x), y1: m.t, y2: m.t + ph, stroke: v.color || "var(--neutral)", "stroke-width": 1, "stroke-dasharray": "3 3" }, g);
+    if (v.label) el("text", { x: X(v.x) + 4, y: m.t + 12 }, svg).textContent = v.label;
+  });
+  const clampY = y => cfg.ylog ? Math.min(Math.max(y, y0 / 10), y1 * 10) : Math.min(Math.max(y, y0 - (y1 - y0)), y1 + (y1 - y0));
+  cfg.series.forEach(s => {
+    const pts = s.data.filter(d => isFinite(d[0]) && isFinite(d[1]) && (!cfg.ylog || d[1] > 0) && (!cfg.xlog || d[0] > 0));
+    if (s.type === "line") {
+      if (pts.length < 2) return;
+      el("path", {
+        d: pts.map((d, i) => (i ? "L" : "M") + X(d[0]).toFixed(1) + " " + Y(clampY(d[1])).toFixed(1)).join(""),
+        fill: "none", stroke: s.color, "stroke-width": s.width || 2, "stroke-dasharray": s.dash || "", "stroke-linejoin": "round", "stroke-linecap": "round", opacity: s.opacity || 1
+      }, g);
+      if (s.startLabel) {
+        const d = pts[0];
+        el("text", { x: X(d[0]) + 4, y: Y(clampY(d[1])) - 5 }, svg).textContent = s.startLabel;
+      }
+    } else {
+      pts.forEach(d => {
+        el("circle", {
+          cx: X(d[0]), cy: Y(clampY(d[1])), r: s.r || 4.5,
+          fill: s.hollow ? "var(--surface-1)" : s.color, stroke: s.hollow ? s.color : "var(--surface-1)", "stroke-width": 2
+        }, g);
+      });
+    }
+  });
+
+  // hover: nearest-x crosshair over the tooltip series
+  const hoverSeries = cfg.series.filter(s => s.tip !== false && s.label);
+  if (!hoverSeries.length) return;
+  const cross = el("line", { y1: m.t, y2: m.t + ph, stroke: "var(--axis)", "stroke-width": 1, visibility: "hidden" }, svg);
+  const dots = hoverSeries.map(s => el("circle", { r: 4, fill: s.color, stroke: "var(--surface-1)", "stroke-width": 2, visibility: "hidden" }, svg));
+  const hit = el("rect", { x: m.l, y: m.t, width: pw, height: ph, fill: "transparent" }, svg);
+  const inv = px => {
+    const f = (px - m.l) / pw;
+    return cfg.xlog ? Math.pow(10, Math.log10(x0) + f * (Math.log10(x1) - Math.log10(x0))) : x0 + f * (x1 - x0);
+  };
+  function move(ev) {
+    const r = svg.getBoundingClientRect(), sc = W / r.width;
+    const px = (ev.clientX - r.left) * sc;
+    const xv = inv(px);
+    const dist = x => cfg.xlog ? Math.abs(Math.log10(x) - Math.log10(xv)) : Math.abs(x - xv);
+    let ref = null; // snap to nearest x of the first series
+    hoverSeries[0].data.forEach(d => { if (d[0] > 0 || !cfg.xlog) if (!ref || dist(d[0]) < dist(ref[0])) ref = d; });
+    if (!ref) return;
+    const xs = ref[0];
+    cross.setAttribute("x1", X(xs)); cross.setAttribute("x2", X(xs)); cross.setAttribute("visibility", "visible");
+    let html = `<div class="muted">${cfg.xname || "x"} = ${(cfg.tipx || num)(xs)}</div>`;
+    hoverSeries.forEach((s, i) => {
+      let best = null;
+      s.data.forEach(d => { if (!best || dist(d[0]) < dist(best[0])) best = d; });
+      if (!best || !isFinite(best[1]) || (cfg.ylog && best[1] <= 0)) { dots[i].setAttribute("visibility", "hidden"); return; }
+      dots[i].setAttribute("cx", X(best[0])); dots[i].setAttribute("cy", Y(clampY(best[1]))); dots[i].setAttribute("visibility", "visible");
+      const note = s.note ? s.note(best) : "";
+      html += `<div class="row"><span class="swatch" style="background:${s.color}"></span>${s.label}: ${(cfg.tipy || num)(best[1])}${note}</div>`;
+    });
+    tip.innerHTML = html; tip.style.display = "block";
+    const tw = tip.offsetWidth;
+    let left = ev.pageX + 14; if (left + tw > window.scrollX + document.documentElement.clientWidth - 8) left = ev.pageX - tw - 14;
+    tip.style.left = left + "px"; tip.style.top = (ev.pageY + 12) + "px";
+  }
+  function leave() { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); dots.forEach(d => d.setAttribute("visibility", "hidden")); }
+  hit.addEventListener("pointermove", move);
+  hit.addEventListener("pointerleave", leave);
+}
+
+function legend(id, items) {
+  document.getElementById(id).innerHTML = items.map(it =>
+    `<span><i class="${it.kind || ""}" style="border-color:${it.color}"></i><span>${it.label}</span></span>`).join("");
+}
+
+// ---------- State & UI ----------
+const $ = id => document.getElementById(id);
+let seed = 12345;
+function params() {
+  return {
+    Km: Math.pow(10, +$("km").value),
+    Et: Math.pow(10, +$("et").value),
+    kcat: Math.pow(10, +$("kcat").value),
+    smaxRel: Math.pow(10, +$("smax").value),
+    npts: +$("npts").value,
+    noise: +$("noise").value / 100
+  };
+}
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function render() {
+  const p = params();
+  const C = { quad: css("--series-quad"), mm: css("--series-mm"), neutral: css("--neutral"), faint: css("--neutral-faint") };
+
+  $("km-out").textContent = conc(p.Km);
+  $("et-out").textContent = conc(p.Et);
+  $("kcat-out").textContent = num(p.kcat) + " s⁻¹";
+  const S50 = p.Km + p.Et / 2;
+  $("smax-out").textContent = num(p.smaxRel, 2) + " × S½ = " + conc(p.smaxRel * S50);
+  $("npts-out").textContent = p.npts;
+  $("noise-out").textContent = num(p.noise * 100, 2) + "%";
+  const ratio = p.Et / p.Km;
+  $("ratio-hint").textContent = `[E]total / Km = ${num(ratio, 2)}`;
+
+  // --- current dataset and fits
+  const D = makeData(p, p.Km, seed);
+  const mm = fitMM(D.S, D.v), qd = fitQuad(D.S, D.v, p.Et);
+  const kcatMM = mm.scale / p.Et;
+
+  const kmText = f => (f.atHi ? "> " : f.atLo ? "< " : "") + conc(f.Km);
+  const statsHtml = [
+    { k: "True K<sub>m</sub>", sw: C.neutral, v: conc(p.Km), s: `[E]<sub>t</sub>/K<sub>m</sub> = ${num(ratio, 2)}` },
+    { k: "MM fitted K<sub>m</sub>", sw: C.mm, v: kmText(mm), s: mm.atHi ? "fit did not converge (data look linear)" : fold(mm.Km, p.Km) },
+    { k: "Quadratic fitted K<sub>m</sub>", sw: C.quad, v: kmText(qd), s: qd.atLo ? "below what the data can resolve" : qd.atHi ? "fit did not converge" : fold(qd.Km, p.Km) },
+    { k: "Fitted k<sub>cat</sub> (MM / quad)", v: (mm.atHi ? "—" : num(kcatMM, 2)) + " / " + num(qd.scale, 2), s: `true ${num(p.kcat, 3)} s⁻¹` },
+  ];
+  $("stats").innerHTML = statsHtml.map(x =>
+    `<div class="stat"><div class="k">${x.sw ? `<span class="swatch" style="background:${x.sw}"></span>` : ""}${x.k}</div><div class="v">${x.v}</div><div class="s">${x.s}</div></div>`).join("");
+
+  const err = mm.atHi ? Infinity : Math.max(mm.Km / p.Km, p.Km / mm.Km);
+  const vd = $("verdict");
+  if (err < 1.25) {
+    vd.className = "verdict ok";
+    vd.innerHTML = `MM is fine here: [E]<sub>t</sub> is small compared with [S] + K<sub>m</sub>, so nearly all added substrate is free. The MM K<sub>m</sub> is within 25% of the truth.`;
+  } else {
+    vd.className = "verdict bad";
+    vd.innerHTML = `MM fails here: the MM fit reports K<sub>m</sub> ${mm.atHi ? "without bound" : num(err, 2) + "-fold off"}. ` +
+      `About ${conc(p.Km + p.Et / 2)} of substrate (K<sub>m</sub> + [E]<sub>t</sub>/2) must be added to reach half-maximal rate, because the enzyme itself ties up substrate as ES. ` +
+      `The quadratic, which accounts for this, recovers ${kmText(qd)}.`;
+  }
+
+  // --- summary: Km error vs [E]t/Km, at the current true Km (i.e. "what if I add more enzyme?")
+  const pct = document.querySelector("input[name=errmode]:checked").value === "pct";
+  const rGrid = []; for (let lr = -3; lr <= 3 + 1e-9; lr += 0.1) rGrid.push(Math.pow(10, lr));
+  const sumFits = rGrid.map((r, i) => {
+    const pp = Object.assign({}, p, { Et: r * p.Km });
+    const d = makeData(pp, p.Km, seed + 7919 * (i + 1));
+    return { r, mm: fitMM(d.S, d.v), qd: fitQuad(d.S, d.v, pp.Et) };
+  });
+  const xMax = pct ? 10 : 1e3;
+  const toY = ratio => pct ? (ratio - 1) * 100 : ratio;
+  const inX = f => f.r <= xMax * 1.0001;
+  const mmPts = sumFits.filter(inX).map(f => [f.r, toY(f.mm.Km / p.Km)]);
+  const qdPts = sumFits.filter(inX).map(f => [f.r, toY(f.qd.Km / p.Km)]);
+  const theory = sumFits.filter(inX).map(f => [f.r, toY(1 + f.r / 2)]);
+  const byR = r => sumFits.find(f => f.r === r);
+  const ydom = pct
+    ? [Math.min(-100, ...qdPts.map(d => d[1])) , Math.max(50, ...mmPts.map(d => d[1]), ...theory.map(d => d[1])) * 1.08]
+    : [0.1, 1e3];
+  if (pct) ydom[0] = Math.max(ydom[0], -100);
+  const series = [
+    { type: "line", data: [[1e-3, toY(1)], [xMax, toY(1)]], color: C.neutral, width: 1.5, tip: false },
+    { type: "line", data: theory, color: C.mm, width: 1.5, dash: "5 4", opacity: 0.7, label: "Expected MM (1 + [E]t/2Km)", tip: false },
+    { type: "line", data: mmPts, color: C.mm, label: "MM fit", note: d => byR(d[0]).mm.atHi ? " (unbounded)" : "" },
+    { type: "line", data: qdPts, color: C.quad, label: "Quadratic fit", note: d => byR(d[0]).qd.atLo ? " (below resolvable)" : "" },
+  ];
+  if (ratio <= xMax) {
+    series.push({ type: "points", data: [[ratio, toY(mm.Km / p.Km)]], color: C.mm, r: 6, tip: false });
+    series.push({ type: "points", data: [[ratio, toY(qd.Km / p.Km)]], color: C.quad, r: 6, hollow: true, tip: false });
+  }
+  const yfmt = pct ? (v => (v > 0 ? "+" : "") + num(v, 3) + "%") : (v => num(v, 3) + "×");
+  $("sum-sub").innerHTML = `True K<sub>m</sub> is held at ${conc(p.Km)} while [E]<sub>total</sub> is varied. Each point on a curve is a separate simulated experiment with the same [S] design and ${num(p.noise * 100, 2)}% noise. ` +
+    (pct ? `% difference = (fitted − true) / true × 100; the band marks ±10%. The x-axis stops at [E]/K<sub>m</sub> = 10 to keep the scale readable; switch to Ratio to see further.`
+         : `A ratio of 1 means the fit is right; the band marks ±10%.`) +
+    ` The vertical line marks the current [E]<sub>t</sub>/K<sub>m</sub> = ${num(ratio, 2)}. Hover for values.`;
+  legend("sum-legend", [
+    { label: "MM fit", color: C.mm },
+    { label: "Quadratic fit", color: C.quad },
+    { label: "Expected MM error, 1 + [E]<sub>t</sub>/2K<sub>m</sub>", color: C.mm, kind: "dash" },
+    { label: "No error", color: C.neutral },
+  ]);
+  plot($("plot-sum"), {
+    xlog: true, ylog: !pct, xdom: [1e-3, xMax], ydom,
+    xlabel: "[E]total / Km", ylabel: pct ? "Km error (%)" : "Fitted Km / true Km",
+    xname: "[E]t/Km", tipx: r => num(r, 3) + " ([E]t = " + conc(r * p.Km) + ")", tipy: yfmt, yfmt,
+    hbands: [pct ? [-10, 10] : [0.9, 1.1]],
+    vlines: ratio <= xMax ? [{ x: ratio }] : [], series,
+    aria: "Error in fitted Km versus enzyme-to-Km ratio for Michaelis–Menten and quadratic fits",
+    height: Math.round(Math.min(Math.max($("plot-sum").clientWidth * 0.42, 280), 420))
+  });
+
+  // --- rate data and fits
+  const vsFree = $("vsfree").checked;
+  const sHi = p.smaxRel * S50 * 1.08;
+  const curveS = []; for (let i = 0; i <= 160; i++) curveS.push(sHi * i / 160);
+  const vmaxPlot = Math.max(...D.v, ...D.vtrue) * 1.15;
+  const rateSeries = [];
+  if (!vsFree) {
+    rateSeries.push({ type: "line", data: curveS.map(s => [s, vMM(s, mm.scale, mm.Km)]), color: C.mm, label: "MM fit", tipy: rateUnits });
+    rateSeries.push({ type: "line", data: curveS.map(s => [s, vQuad(s, p.Et, qd.Km, qd.scale)]), color: C.quad, label: "Quadratic fit", dash: "6 4" });
+    rateSeries.push({ type: "points", data: D.S.map((s, i) => [s, D.v[i]]), color: C.neutral, tip: false });
+    legend("rate-legend", [{ label: "Data", color: C.neutral, kind: "dot" }, { label: "MM fit", color: C.mm }, { label: "Quadratic fit", color: C.quad, kind: "dash" }]);
+    $("rate-sub").innerHTML = `Rate vs. the substrate you <i>added</i>. The two fits can look equally good, yet return very different K<sub>m</sub> values.`;
+  } else {
+    const Sfree = D.S.map(s => s - ES(s, p.Et, p.Km));
+    rateSeries.push({ type: "line", data: curveS.map(s => [s, vMM(s, p.kcat * p.Et, p.Km)]), color: C.neutral, label: "MM with true Km, kcat" });
+    rateSeries.push({ type: "points", data: Sfree.map((s, i) => [s, D.v[i]]), color: C.quad, tip: false });
+    rateSeries.push({ type: "points", data: D.S.map((s, i) => [s, D.v[i]]), color: C.faint, hollow: true, r: 3.5, tip: false });
+    legend("rate-legend", [{ label: "Data vs [S]free", color: C.quad, kind: "dot" }, { label: "Same data vs [S]total", color: C.faint, kind: "dot" }, { label: "MM, true Km & kcat", color: C.neutral }]);
+    $("rate-sub").innerHTML = `The same rates replotted against the <i>free</i> substrate (which you cannot measure directly). Against [S]<sub>free</sub> the points follow MM with the true K<sub>m</sub>.`;
+  }
+  plot($("plot-rate"), {
+    xdom: [0, sHi], ydom: [0, vmaxPlot], xlabel: (vsFree ? "[S]free" : "[S]total") + " (µM)", ylabel: "v₀ (µM/s)",
+    series: rateSeries, xname: "[S]", tipx: conc, tipy: rateUnits, aria: "Initial rate versus substrate with fits"
+  });
+  $("table").innerHTML = `<table class="data"><thead><tr><th>[S]<sub>total</sub> (µM)</th><th>[S]<sub>free</sub> (µM)</th><th>v₀ observed (µM/s)</th><th>MM fit</th><th>Quad fit</th></tr></thead><tbody>` +
+    D.S.map((s, i) => `<tr><td>${num(s)}</td><td>${num(s - ES(s, p.Et, p.Km))}</td><td>${num(D.v[i])}</td><td>${num(vMM(s, mm.scale, mm.Km))}</td><td>${num(vQuad(s, p.Et, qd.Km, qd.scale))}</td></tr>`).join("") +
+    `</tbody></table>`;
+
+  // --- free fraction
+  const fGrid = []; for (let lk = -2; lk <= 2.5 + 1e-9; lk += 0.025) fGrid.push(Math.pow(10, lk) * S50);
+  plot($("plot-free"), {
+    xlog: true, xdom: [fGrid[0], fGrid[fGrid.length - 1]], ydom: [0, 1.05],
+    xlabel: "[S]total (µM)", ylabel: "[S]free / [S]total", xname: "[S]total", tipx: conc, tipy: v => num(v * 100, 3) + "%",
+    bands: [[S_LO * S50, p.smaxRel * S50]],
+    series: [
+      { type: "line", data: [[fGrid[0], 1], [fGrid[fGrid.length - 1], 1]], color: C.neutral, width: 1, dash: "3 3", tip: false },
+      { type: "line", data: fGrid.map(s => [s, 1 - ES(s, p.Et, p.Km) / s]), color: C.quad, label: "Free fraction" }
+    ],
+    aria: "Fraction of substrate that is free versus total substrate"
+  });
+
+  // --- time course at the highest [S] in the design
+  const S0 = p.smaxRel * S50;
+  const trueRate = s => p.kcat * ES(s, p.Et, p.Km);
+  const naiveRate = s => p.kcat * p.Et * s / (p.Km + s);
+  const t90 = timeTo(trueRate, S0, 0.9), t50 = timeTo(trueRate, S0, 0.5);
+  const tmax = t90 * 1.4;
+  // scale time axis to a readable unit
+  const unit = tmax < 2 ? [1e-3, "ms"] : tmax < 300 ? [1, "s"] : tmax < 3 * 3600 ? [60, "min"] : tmax < 3 * 86400 ? [3600, "h"] : [86400, "days"];
+  const tcTrue = timeCourse(trueRate, S0, tmax, 300).map(d => [d[0] / unit[0], d[1] / S0 * 100]);
+  const tcNaive = timeCourse(naiveRate, S0, tmax, 300).map(d => [d[0] / unit[0], d[1] / S0 * 100]);
+  // reference: the same experiment at a "safe" enzyme concentration, [E]t = Km/100
+  const EtSafe = p.Km / 100;
+  const t50safe = timeTo(s => p.kcat * ES(s, EtSafe, p.Km), S0, 0.5);
+  $("tc-sub").innerHTML = `Product formed from [S]<sub>0</sub> = ${conc(S0)} (the highest [S] in the design). ` +
+    `Half the substrate is used in <b>${dur(t50)}</b> at [E]<sub>t</sub> = ${conc(p.Et)}; at a safe [E]<sub>t</sub> = K<sub>m</sub>/100 (${conc(EtSafe)}) it would take <b>${dur(t50safe)}</b>. ` +
+    `The dashed curve is what MM with [S]<sub>free</sub> = [S]<sub>total</sub> predicts.`;
+  legend("tc-legend", [{ label: "Actual (quadratic rate law)", color: C.quad }, { label: "Naive MM prediction", color: C.mm, kind: "dash" }]);
+  plot($("plot-tc"), {
+    xdom: [0, tmax / unit[0]], ydom: [0, 105], xlabel: `Time (${unit[1]})`, ylabel: "Substrate converted (%)",
+    xname: "t", tipx: t => num(t) + " " + unit[1], tipy: v => num(v, 3) + "%",
+    series: [
+      { type: "line", data: tcTrue, color: C.quad, label: "Actual" },
+      { type: "line", data: tcNaive, color: C.mm, dash: "6 4", label: "Naive MM" }
+    ],
+    aria: "Progress curve of substrate conversion over time",
+    height: Math.round(Math.min(Math.max($("plot-tc").clientWidth * 0.32, 220), 320))
+  });
+}
+
+const PRESETS = {
+  classic: { km: 0, et: -2, kcat: 0, smax: 1, noise: 3 },
+  tempting: { km: -1, et: 0, kcat: -1, smax: 1, noise: 3 },
+  tight: { km: -3, et: -1, kcat: -1, smax: 1, noise: 2 }
+};
+document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => {
+  const pr = PRESETS[b.dataset.preset];
+  for (const k in pr) $(k).value = pr[k];
+  render();
+}));
+["km", "et", "kcat", "smax", "npts", "noise"].forEach(id => $(id).addEventListener("input", render));
+$("vsfree").addEventListener("change", render);
+document.querySelectorAll("input[name=errmode]").forEach(r => r.addEventListener("change", render));
+$("reseed").addEventListener("click", () => { seed = (Math.random() * 1e9) | 0; render(); });
+let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(render, 120); });
+if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+render();
+</script>
+</body>
+</html>

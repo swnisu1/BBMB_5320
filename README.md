@@ -1,6 +1,6 @@
 # BBMB 5320 – Enzyme kinetics widgets
 
-## When Michaelis–Menten breaks (`index.html`)
+## When Michaelis–Menten breaks (`when-michaelis-menten-breaks/`)
 
 Interactive simulation showing why the Michaelis–Menten equation fails when
 [E]<sub>total</sub> is not ≪ [S] + K<sub>m</sub>: substrate bound as ES is no
@@ -19,5 +19,9 @@ k<sub>cat</sub>, the [S] range, number of points and noise, and see:
 - the fraction of substrate that is free across the [S] range
 - the progress curve, compared with a "safe" enzyme concentration
 
-Open `index.html` in any browser (no install or internet needed), or enable
+Open `when-michaelis-menten-breaks/index.html` in any browser (no install or internet needed), or enable
 GitHub Pages for the repository.
+
+With GitHub Pages enabled (Settings → Pages → deploy from `main`, root), the
+widget is at <https://swnisu1.github.io/BBMB_5320/when-michaelis-menten-breaks/>
+and the repository root shows a list of widgets.

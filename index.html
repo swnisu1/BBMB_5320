@@ -103,6 +103,13 @@ button:hover { border-color: var(--axis); }
 .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .charts .wide { grid-column: 1 / -1; }
 @media (max-width: 1000px) { .charts { grid-template-columns: 1fr; } }
+.chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 2px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; font-size: 0.8rem; }
+.seg label { cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; padding: 4px 10px; color: var(--text-secondary); }
+.seg input:checked + span { background: var(--accent-bg); color: var(--text-primary); font-weight: 600; }
+.seg input:focus-visible + span { outline: 2px solid var(--series-quad); outline-offset: -2px; }
 .chart-sub { font-size: 0.82rem; color: var(--text-secondary); margin: 0 0 8px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; }
 .legend > span { display: inline-flex; align-items: center; gap: 6px; }
@@ -184,7 +191,6 @@ details summary { cursor: pointer; font-size: 0.85rem; color: var(--text-seconda
 
       <div class="group-title">Display</div>
       <label class="check"><input type="checkbox" id="vsfree"><span>Replot rate data against true [S]<sub>free</sub></span></label>
-      <label class="check"><input type="checkbox" id="series" checked><span>Show MM fits at other [E]<sub>t</sub> in the K<sub>m</sub> plot</span></label>
 
       <div class="group-title">Presets</div>
       <div class="presets">
@@ -200,7 +206,13 @@ details summary { cursor: pointer; font-size: 0.85rem; color: var(--text-seconda
 
       <div class="charts">
         <div class="card wide">
-          <h2>Fitted K<sub>m</sub> vs. real K<sub>m</sub></h2>
+          <div class="chart-head">
+            <h2>How wrong is the fitted K<sub>m</sub>?</h2>
+            <div class="seg" role="radiogroup" aria-label="Error measure">
+              <label><input type="radio" name="errmode" value="ratio" checked><span>Ratio (fitted / true)</span></label>
+              <label><input type="radio" name="errmode" value="pct"><span>% difference</span></label>
+            </div>
+          </div>
           <p class="chart-sub" id="sum-sub"></p>
           <div class="legend" id="sum-legend"></div>
           <div class="plot" id="plot-sum"></div>
@@ -242,14 +254,14 @@ details summary { cursor: pointer; font-size: 0.85rem; color: var(--text-seconda
         The quadratic fit has two free parameters, k<sub>cat</sub> and K<sub>m</sub>, and uses the known [E]<sub>t</sub>.
         The MM fit has two free parameters, V<sub>max</sub> and K<sub>m</sub>.</p>
       <p>At half-maximal rate, [ES] = [E]<sub>t</sub>/2 and [S]<sub>free</sub> = K<sub>m</sub>, so the substrate you must add is
-        [S]<sub>total</sub> = K<sub>m</sub> + [E]<sub>t</sub>/2. That is roughly what an MM fit reports as K<sub>m</sub> (dashed line in the top plot).</p>
+        [S]<sub>total</sub> = K<sub>m</sub> + [E]<sub>t</sub>/2. That is roughly what an MM fit reports as K<sub>m</sub> (the dashed line in the top plot is the ratio this predicts, 1 + [E]<sub>t</sub>/2K<sub>m</sub>).</p>
     </div>
     <div class="card">
       <h2>Things to try</h2>
       <ol>
         <li>Start with <i>Classic MM</i>. Raise [E]<sub>total</sub> one decade at a time. At what [E]/K<sub>m</sub> does the MM K<sub>m</sub> become more than 2-fold wrong?</li>
         <li>Try <i>Tempting shortcut</i>. Note how much shorter the time course is. Is the MM fit visibly bad? (Check the residuals by eye, or turn the noise up to 5%.)</li>
-        <li>In the top plot, find where the orange curve leaves the diagonal. Compare that K<sub>m</sub> with [E]<sub>total</sub>/2.</li>
+        <li>In the top plot, read off the [E]<sub>t</sub>/K<sub>m</sub> where the MM error first leaves the ±10% band. How does that compare with the dashed prediction?</li>
         <li>Try <i>Tight binding</i> and raise the noise. How low a K<sub>m</sub> can the quadratic still resolve once K<sub>m</sub> ≪ [E]<sub>t</sub>? Why does the data then look like a titration?</li>
         <li>Tick <i>Replot against true [S]<sub>free</sub></i>. Why do the same points now fall on an MM curve with the true K<sub>m</sub>?</li>
         <li>Does fitted V<sub>max</sub> (or k<sub>cat</sub>) suffer as much as K<sub>m</sub>? What happens to both fits when the highest [S] is only 1–2 × S<sub>½</sub>, so the data never reach saturation?</li>
@@ -463,11 +475,14 @@ function plot(container, cfg) {
   (cfg.bands || []).forEach(b => {
     el("rect", { x: X(b[0]), y: m.t, width: Math.max(X(b[1]) - X(b[0]), 0), height: ph, fill: "var(--shade)" }, g);
   });
+  (cfg.hbands || []).forEach(b => {
+    el("rect", { x: m.l, y: Y(b[1]), width: pw, height: Math.max(Y(b[0]) - Y(b[1]), 0), fill: "var(--shade)" }, g);
+  });
   (cfg.vlines || []).forEach(v => {
     el("line", { x1: X(v.x), x2: X(v.x), y1: m.t, y2: m.t + ph, stroke: v.color || "var(--neutral)", "stroke-width": 1, "stroke-dasharray": "3 3" }, g);
     if (v.label) el("text", { x: X(v.x) + 4, y: m.t + 12 }, svg).textContent = v.label;
   });
-  const clampY = y => cfg.ylog ? Math.min(Math.max(y, y0 / 10), y1 * 10) : y;
+  const clampY = y => cfg.ylog ? Math.min(Math.max(y, y0 / 10), y1 * 10) : Math.min(Math.max(y, y0 - (y1 - y0)), y1 + (y1 - y0));
   cfg.series.forEach(s => {
     const pts = s.data.filter(d => isFinite(d[0]) && isFinite(d[1]) && (!cfg.ylog || d[1] > 0) && (!cfg.xlog || d[0] > 0));
     if (s.type === "line") {
@@ -590,45 +605,54 @@ function render() {
       `The quadratic, which accounts for this, recovers ${kmText(qd)}.`;
   }
 
-  // --- summary: fitted Km vs true Km at the current [E]
-  const kmGrid = []; for (let lk = -3; lk <= 3 + 1e-9; lk += 0.1) kmGrid.push(Math.pow(10, lk));
-  const sumFits = kmGrid.map((K, i) => {
-    const d = makeData(p, K, seed + 7919 * (i + 1));
-    return { K, mm: fitMM(d.S, d.v), qd: fitQuad(d.S, d.v, p.Et) };
+  // --- summary: Km error vs [E]t/Km, at the current true Km (i.e. "what if I add more enzyme?")
+  const pct = document.querySelector("input[name=errmode]:checked").value === "pct";
+  const rGrid = []; for (let lr = -3; lr <= 3 + 1e-9; lr += 0.1) rGrid.push(Math.pow(10, lr));
+  const sumFits = rGrid.map((r, i) => {
+    const pp = Object.assign({}, p, { Et: r * p.Km });
+    const d = makeData(pp, p.Km, seed + 7919 * (i + 1));
+    return { r, mm: fitMM(d.S, d.v), qd: fitQuad(d.S, d.v, pp.Et) };
   });
-  const series = [];
-  if ($("series").checked) {
-    const others = [-3, -2, -1, 0, 1].map(e => Math.pow(10, e)).filter(e => Math.abs(Math.log10(e / p.Et)) > 0.15);
-    others.forEach((Et, j) => {
-      const pp = Object.assign({}, p, { Et });
-      const kmCoarse = kmGrid.filter((_, i) => i % 2 === 0);
-      const data = kmCoarse.map((K, i) => {
-        const d = makeData(pp, K, seed + 104729 * (j + 1) + i);
-        const f = fitMM(d.S, d.v); return [K, f.Km];
-      });
-      series.push({ type: "line", data, color: C.faint, width: 1.5, tip: false, startLabel: conc(Et) });
-    });
+  const xMax = pct ? 10 : 1e3;
+  const toY = ratio => pct ? (ratio - 1) * 100 : ratio;
+  const inX = f => f.r <= xMax * 1.0001;
+  const mmPts = sumFits.filter(inX).map(f => [f.r, toY(f.mm.Km / p.Km)]);
+  const qdPts = sumFits.filter(inX).map(f => [f.r, toY(f.qd.Km / p.Km)]);
+  const theory = sumFits.filter(inX).map(f => [f.r, toY(1 + f.r / 2)]);
+  const byR = r => sumFits.find(f => f.r === r);
+  const ydom = pct
+    ? [Math.min(-100, ...qdPts.map(d => d[1])) , Math.max(50, ...mmPts.map(d => d[1]), ...theory.map(d => d[1])) * 1.08]
+    : [0.1, 1e3];
+  if (pct) ydom[0] = Math.max(ydom[0], -100);
+  const series = [
+    { type: "line", data: [[1e-3, toY(1)], [xMax, toY(1)]], color: C.neutral, width: 1.5, tip: false },
+    { type: "line", data: theory, color: C.mm, width: 1.5, dash: "5 4", opacity: 0.7, label: "Expected MM (1 + [E]t/2Km)", tip: false },
+    { type: "line", data: mmPts, color: C.mm, label: "MM fit", note: d => byR(d[0]).mm.atHi ? " (unbounded)" : "" },
+    { type: "line", data: qdPts, color: C.quad, label: "Quadratic fit", note: d => byR(d[0]).qd.atLo ? " (below resolvable)" : "" },
+  ];
+  if (ratio <= xMax) {
+    series.push({ type: "points", data: [[ratio, toY(mm.Km / p.Km)]], color: C.mm, r: 6, tip: false });
+    series.push({ type: "points", data: [[ratio, toY(qd.Km / p.Km)]], color: C.quad, r: 6, hollow: true, tip: false });
   }
-  series.push({ type: "line", data: [[1e-3, 1e-3], [1e3, 1e3]], color: C.neutral, width: 1.5, label: "Fitted = true", tip: false });
-  series.push({ type: "line", data: kmGrid.map(K => [K, K + p.Et / 2]), color: C.mm, width: 1.5, dash: "5 4", opacity: 0.7, tip: false });
-  series.push({ type: "line", data: sumFits.map(f => [f.K, f.mm.Km]), color: C.mm, label: "MM fit", note: d => { const f = sumFits.find(s => s.K === d[0]); return f && f.mm.atHi ? " (unbounded)" : ""; } });
-  series.push({ type: "line", data: sumFits.map(f => [f.K, f.qd.Km]), color: C.quad, label: "Quadratic fit", note: d => { const f = sumFits.find(s => s.K === d[0]); return f && f.qd.atLo ? " (at lower limit)" : ""; } });
-  series.push({ type: "points", data: [[p.Km, mm.Km]], color: C.mm, r: 6, tip: false });
-  series.push({ type: "points", data: [[p.Km, qd.Km]], color: C.quad, r: 6, hollow: true, tip: false });
-
-  $("sum-sub").innerHTML = `Each point on a curve is a separate simulated experiment at [E]<sub>t</sub> = ${conc(p.Et)}, using the same [S] design (0.2–${num(p.smaxRel, 2)} × S<sub>½</sub>, ${p.npts} points, ${num(p.noise * 100, 2)}% noise). The vertical line marks the current true K<sub>m</sub>. Hover for values.`;
+  const yfmt = pct ? (v => (v > 0 ? "+" : "") + num(v, 3) + "%") : (v => num(v, 3) + "×");
+  $("sum-sub").innerHTML = `True K<sub>m</sub> is held at ${conc(p.Km)} while [E]<sub>total</sub> is varied. Each point on a curve is a separate simulated experiment with the same [S] design and ${num(p.noise * 100, 2)}% noise. ` +
+    (pct ? `% difference = (fitted − true) / true × 100; the band marks ±10%. The x-axis stops at [E]/K<sub>m</sub> = 10 to keep the scale readable; switch to Ratio to see further.`
+         : `A ratio of 1 means the fit is right; the band marks ±10%.`) +
+    ` The vertical line marks the current [E]<sub>t</sub>/K<sub>m</sub> = ${num(ratio, 2)}. Hover for values.`;
   legend("sum-legend", [
     { label: "MM fit", color: C.mm },
     { label: "Quadratic fit", color: C.quad },
-    { label: "Fitted = true", color: C.neutral },
-    { label: "K<sub>m</sub> + [E]<sub>t</sub>/2", color: C.mm, kind: "dash" },
-  ].concat($("series").checked ? [{ label: "MM fit at other [E]<sub>t</sub>", color: C.faint }] : []));
+    { label: "Expected MM error, 1 + [E]<sub>t</sub>/2K<sub>m</sub>", color: C.mm, kind: "dash" },
+    { label: "No error", color: C.neutral },
+  ]);
   plot($("plot-sum"), {
-    xlog: true, ylog: true, xdom: [1e-3, 1e3], ydom: [1e-4, 1e4],
-    xlabel: "True Km (µM)", ylabel: "Fitted Km (µM)", xname: "True Km", tipx: conc, tipy: conc,
-    vlines: [{ x: p.Km }], series,
-    aria: "Log-log plot of fitted Km versus true Km for Michaelis–Menten and quadratic fits",
-    height: Math.round(Math.min(Math.max($("plot-sum").clientWidth * 0.45, 280), 440))
+    xlog: true, ylog: !pct, xdom: [1e-3, xMax], ydom,
+    xlabel: "[E]total / Km", ylabel: pct ? "Km error (%)" : "Fitted Km / true Km",
+    xname: "[E]t/Km", tipx: r => num(r, 3) + " ([E]t = " + conc(r * p.Km) + ")", tipy: yfmt, yfmt,
+    hbands: [pct ? [-10, 10] : [0.9, 1.1]],
+    vlines: ratio <= xMax ? [{ x: ratio }] : [], series,
+    aria: "Error in fitted Km versus enzyme-to-Km ratio for Michaelis–Menten and quadratic fits",
+    height: Math.round(Math.min(Math.max($("plot-sum").clientWidth * 0.42, 280), 420))
   });
 
   // --- rate data and fits
@@ -712,7 +736,8 @@ document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("clic
   render();
 }));
 ["km", "et", "kcat", "smax", "npts", "noise"].forEach(id => $(id).addEventListener("input", render));
-["vsfree", "series"].forEach(id => $(id).addEventListener("change", render));
+$("vsfree").addEventListener("change", render);
+document.querySelectorAll("input[name=errmode]").forEach(r => r.addEventListener("change", render));
 $("reseed").addEventListener("click", () => { seed = (Math.random() * 1e9) | 0; render(); });
 let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(render, 120); });
 if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);

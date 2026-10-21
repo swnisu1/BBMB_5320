@@ -13,8 +13,8 @@ adjustable noise) are fit with both the MM equation and the quadratic (Morrison)
 equation. Students can adjust true K<sub>m</sub>, [E]<sub>total</sub>,
 k<sub>cat</sub>, the [S] range, number of points and noise, and see:
 
-- fitted K<sub>m</sub> vs. true K<sub>m</sub> (log–log) for both models, with
-  MM fits at other enzyme concentrations for comparison
+- the error in fitted K<sub>m</sub> for both models, as a ratio (fitted/true)
+  or % difference, against [E]<sub>total</sub>/K<sub>m</sub>
 - the rate data with both fits, optionally replotted against true [S]<sub>free</sub>
 - the fraction of substrate that is free across the [S] range
 - the progress curve, compared with a "safe" enzyme concentration
